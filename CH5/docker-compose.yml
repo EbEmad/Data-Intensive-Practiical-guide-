@@ -1,0 +1,44 @@
+
+services:
+  primary:
+    image: postgres:15
+    container_name: pg-primary
+    environment:
+      - POSTGRES_PASSWORD=${PRIMARY_PASSWORD}
+      - POSTGRES_USER=${PRIMARY_USER}
+      - POSTGRES_DB=${PRIMARY_DB}
+    ports:
+      - "5400:5432"
+    volumes:
+      - ./init.sql:/docker-entrypoint-initdb.d/init.sql
+    command: >-
+      postgres -c wal_level=replica
+      -c max_wal_senders=3
+      -c hot_standby=on
+      -c synchronous_commit=off
+
+  replica:
+    image: postgres:15
+    container_name: pg-replica
+    environment:
+      - POSTGRES_PASSWORD=${REPLICA_PASSWORD}
+      - POSTGRES_USER=${REPLICA_USER}
+      - POSTGRES_DB=${REPLICA_DB}
+    ports:
+      - "5401:5432"
+    command: >-
+      postgres -c hot_standby=on
+    depends_on:
+      - primary
+  api:
+    build: .
+    container_name: fastapi-app
+    ports:
+      - "8000:8000"
+    depends_on:
+      - primary
+      - replica
+    environment:
+      PRIMARY_DSN: "postgresql://${PRIMARY_USER}:${PRIMARY_PASSWORD}@pg-primary:5432/${PRIMARY_DB}"
+      REPLICA_DSN: "postgresql://${REPLICA_USER}:${REPLICA_PASSWORD}@pg-replica:5432/${REPLICA_DB}"
+    command: uvicorn main:app --host 0.0.0.0 --port 8000 --reload
