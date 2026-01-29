@@ -1,44 +1,187 @@
-
+---
 services:
-  primary:
-    image: postgres:15
-    container_name: pg-primary
-    environment:
-      - POSTGRES_PASSWORD=${PRIMARY_PASSWORD}
-      - POSTGRES_USER=${PRIMARY_USER}
-      - POSTGRES_DB=${PRIMARY_DB}
+  broker:
+    image: confluentinc/cp-kafka:7.6.1
+    hostname: broker
+    container_name: broker
     ports:
-      - "5400:5432"
+      - "9092:9092"
+      - "9101:9101"
+      - "1234:1234"
+    environment:
+      KAFKA_NODE_ID: 1
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: 'CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT'
+      KAFKA_ADVERTISED_LISTENERS: 'PLAINTEXT://broker:29092,PLAINTEXT_HOST://localhost:9092'
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_JMX_PORT: 9101
+      KAFKA_JMX_HOSTNAME: localhost
+      # KAFKA_AUTO_CREATE_TOPICS_ENABLE: false
+      KAFKA_PROCESS_ROLES: 'broker,controller'
+      KAFKA_CONTROLLER_QUORUM_VOTERS: '1@broker:29093'
+      KAFKA_LISTENERS: 'PLAINTEXT://broker:29092,CONTROLLER://broker:29093,PLAINTEXT_HOST://0.0.0.0:9092'
+      KAFKA_INTER_BROKER_LISTENER_NAME: 'PLAINTEXT'
+      KAFKA_CONTROLLER_LISTENER_NAMES: 'CONTROLLER'
+      #https://docs.confluent.io/platform/current/monitor/cp-logging.html
+      KAFKA_LOG_DIRS: '/tmp/kraft-combined-logs'
+      # Replace CLUSTER_ID with a unique base64 UUID using "bin/kafka-storage.sh random-uuid" 
+      # See https://docs.confluent.io/kafka/operations-tools/kafka-tools.html#kafka-storage-sh
+      CLUSTER_ID: 'MkU3OEVBNTcwNTJENDM2Qk'
+      #https://medium.com/@oredata-engineering/setting-up-prometheus-grafana-for-kafka-on-docker-8a692a45966c
+      KAFKA_OPTS: -javaagent:/tmp/jmx/jmx_prometheus_javaagent.jar=1234:/tmp/jmx/broker.yml
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: "2g"
+        reservations:
+          cpus: '0.5'
+          memory: "2g"
     volumes:
-      - ./init.sql:/docker-entrypoint-initdb.d/init.sql
-    command: >-
-      postgres -c wal_level=replica
-      -c max_wal_senders=3
-      -c hot_standby=on
-      -c synchronous_commit=off
+      - $PWD/jmx-exporter:/tmp/jmx/
 
-  replica:
+  schema-registry:
+    image: confluentinc/cp-schema-registry:7.6.1
+    hostname: schema-registry
+    container_name: schema-registry
+    depends_on:
+      - broker
+    ports:
+      - "8081:8081"
+    environment:
+      SCHEMA_REGISTRY_HOST_NAME: schema-registry
+      SCHEMA_REGISTRY_KAFKASTORE_BOOTSTRAP_SERVERS: 'broker:29092'
+      SCHEMA_REGISTRY_LISTENERS: http://0.0.0.0:8081
+      SCHEMA_REGISTRY_JMX_OPTS: -javaagent:/tmp/jmx/jmx_prometheus_javaagent.jar=1234:/tmp/jmx/schema-registry.yml
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: "1g"
+        reservations:
+          cpus: '0.5'
+          memory: "1g"
+    volumes:
+      - $PWD/jmx-exporter:/tmp/jmx/
+
+  connect:
+    image: confluentinc/cp-kafka-connect:7.7.1
+    hostname: connect
+    container_name: connect
+    depends_on:
+      - broker
+      - schema-registry
+      - mysql
+      - replica1
+      - replica2
+    ports:
+      - "8083:8083"
+      # - "9999:9999"
+      - "1235:1234"
+    environment:
+      CONNECT_BOOTSTRAP_SERVERS: 'broker:29092'
+      CONNECT_REST_ADVERTISED_HOST_NAME: connect
+      CONNECT_GROUP_ID: compose-connect-group
+      CONNECT_CONFIG_STORAGE_TOPIC: docker-connect-configs
+      CONNECT_CONFIG_STORAGE_REPLICATION_FACTOR: 1
+      CONNECT_OFFSET_FLUSH_INTERVAL_MS: 10000
+      CONNECT_OFFSET_STORAGE_TOPIC: docker-connect-offsets
+      CONNECT_OFFSET_STORAGE_REPLICATION_FACTOR: 1
+      CONNECT_OFFSET_STORAGE_CLEANUP_POLICY: compact
+      CONNECT_STATUS_STORAGE_TOPIC: docker-connect-status
+      CONNECT_STATUS_STORAGE_REPLICATION_FACTOR: 1
+      CONNECT_KEY_CONVERTER: org.apache.kafka.connect.storage.StringConverter
+      CONNECT_VALUE_CONVERTER: io.confluent.connect.avro.AvroConverter
+      CONNECT_VALUE_CONVERTER_SCHEMA_REGISTRY_URL: http://schema-registry:8081
+      # CLASSPATH required due to CC-2422
+      CLASSPATH: /usr/share/java/monitoring-interceptors/monitoring-interceptors-7.6.1.jar
+      CONNECT_PRODUCER_INTERCEPTOR_CLASSES: "io.confluent.monitoring.clients.interceptor.MonitoringProducerInterceptor"
+      CONNECT_CONSUMER_INTERCEPTOR_CLASSES: "io.confluent.monitoring.clients.interceptor.MonitoringConsumerInterceptor"
+      CONNECT_PLUGIN_PATH: "/usr/share/java,/usr/share/confluent-hub-components,/tmp/ext-plugins"
+      CONNECT_LOG4J_LOGGERS: org.apache.zookeeper=ERROR,org.I0Itec.zkclient=ERROR,org.reflections=ERROR
+      CONNECT_PRODUCER_MAX_REQUEST_SIZE: 2097152
+      # CONNECT_LOG4J_LOGGERS: "log4j.logger.io.confluent.<connector-name>=DEBUG,org.apache.kafka.connect=DEBUG"
+      KAFKA_JMX_PORT: 9999
+      KAFKA_JMX_HOSTNAME: localhost
+      KAFKA_JMX_OPTS: -javaagent:/tmp/jmx/jmx_prometheus_javaagent.jar=1234:/tmp/jmx/connect.yml -Dcom.sun.management.jmxremote=true -Dcom.sun.management.jmxremote.authenticate=false  -Dcom.sun.management.jmxremote.ssl=false
+
+    deploy:
+      resources:
+        limits:
+          cpus: '1'
+          memory: "3g"
+        reservations:
+          cpus: '1'
+          memory: "3g"
+    volumes:
+      - $PWD/connectors:/tmp/data
+      - $PWD/plugins:/tmp/ext-plugins
+      - $PWD/jmx-exporter:/tmp/jmx/
+
+  kafka-ui:
+    container_name: kafka-ui
+    image: provectuslabs/kafka-ui:latest
+    platform: linux/amd64
+    ports:
+      - 8090:8080
+    depends_on:
+      - broker
+    environment:
+      KAFKA_CLUSTERS_0_NAME: local
+      KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: broker:29092
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: "1g"
+        reservations:
+          cpus: '0.5'
+          memory: "1g"
+
+  mysql:
+    image: mysql:8.0.29
+    container_name: mysql
+    hostname: mysql
+    restart: always
+    environment:
+      MYSQL_ROOT_PASSWORD: root
+      MYSQL_DATABASE: ecom
+      MYSQL_USER: myuser
+      MYSQL_PASSWORD: mypassword
+    command: [ "mysqld", "--log-bin=mysql-bin", "--binlog-format=row", "--binlog-row-image=full", "--server-id=1" ]
+    ports:
+      - 3305:3306
+    volumes:
+      - $PWD/init-mysql.sql:/docker-entrypoint-initdb.d/init-mysql.sql:ro
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: "3g"
+        reservations:
+          cpus: '0.5'
+          memory: "3g"
+
+  replica1:
     image: postgres:15
-    container_name: pg-replica
-    environment:
-      - POSTGRES_PASSWORD=${REPLICA_PASSWORD}
-      - POSTGRES_USER=${REPLICA_USER}
-      - POSTGRES_DB=${REPLICA_DB}
+    container_name: replica1
     ports:
-      - "5401:5432"
-    command: >-
-      postgres -c hot_standby=on
-    depends_on:
-      - primary
-  api:
-    build: .
-    container_name: fastapi-app
-    ports:
-      - "8000:8000"
-    depends_on:
-      - primary
-      - replica
+      - 5432:5432
     environment:
-      PRIMARY_DSN: "postgresql://${PRIMARY_USER}:${PRIMARY_PASSWORD}@pg-primary:5432/${PRIMARY_DB}"
-      REPLICA_DSN: "postgresql://${REPLICA_USER}:${REPLICA_PASSWORD}@pg-replica:5432/${REPLICA_DB}"
-    command: uvicorn main:app --host 0.0.0.0 --port 8000 --reload
+      - POSTGRES_PASSWORD=password
+      - POSTGRES_USER=admin
+      - POSTGRES_DB=ecom
+    command: [ "postgres", "-c", "wal_level=logical" ]
+
+  replica2:
+    image: postgres:15
+    container_name: replica2
+    ports:
+      - 5433:5432
+    environment:
+      - POSTGRES_PASSWORD=ebemad
+      - POSTGRES_USER=user
+      - POSTGRES_DB=ecom
+    command: [ "postgres", "-c", "wal_level=logical" ]
