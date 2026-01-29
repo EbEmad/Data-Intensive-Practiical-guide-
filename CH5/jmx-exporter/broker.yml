@@ -1,0 +1,29 @@
+lowercaseOutputName: true
+rules:
+  - pattern : kafka.cluster<type=(.+), name=(.+), topic=(.+), partition=(.+)><>Value
+    name: kafka_cluster_$1_$2
+    labels:
+      topic: "$3"
+      partition: "$4"
+  - pattern : kafka.log<type=Log, name=(.+), topic=(.+), partition=(.+)><>Value
+    name: kafka_log_$1
+    labels:
+      topic: "$2"
+      partition: "$3"
+  - pattern : kafka.controller<type=(.+), name=(.+)><>(Value)
+    name: kafka_controller_$1_$2
+  - pattern : kafka.network<type=(.+), name=(.+)><>Value
+    name: kafka_network_$1_$2
+  - pattern : kafka.server<type=(.+), name=(.+)><>(Count|Value)
+    name: kafka_server_$1_$2
+  - pattern : kafka.server<type=(.+), name=(.+), topic=(.+)><>(Count|Value)
+    name: kafka_server_$1_$2
+    labels:
+      topic: "$3"
+  - pattern : kafka.server<type=(.+), name=(.+), topic=(.+), partition=(.+)><>(Count|Value)
+    name: kafka_server_$1_$2
+    labels:
+      topic: "$3"
+      partition: "$4"
+  - pattern : kafka.utils<type=(.+), name=(.+)><>Value
+    name: kafka_utils_$1_$2

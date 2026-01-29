@@ -1,0 +1,29 @@
+{
+    "name": "replica1-sink",
+    "config": {
+        "connector.class": "io.confluent.connect.jdbc.JdbcSinkConnector",
+        "tasks.max": "1",
+        "topics": "cdc.ecom.users",
+        "transforms": "RenameTopic",
+        "transforms.RenameTopic.type": "org.apache.kafka.connect.transforms.RegexRouter",
+        "transforms.RenameTopic.regex": "cdc\\.ecom\\.(.*)",
+        "transforms.RenameTopic.replacement": "$1",
+        "table.name.format": "ecom.${topic}",
+        "connection.url": "jdbc:postgresql://replica1:5432/ecom",
+        "connection.user": "admin",
+        "connection.password": "password",
+        "auto.create": "true",
+        "auto.evolve": "true",
+        "delete.enabled": "true",
+        "insert.mode": "upsert",
+        "pk.mode": "record_key",
+        "pk.fields": "id",
+        "key.converter.schemas.enable": "true",
+        "value.converter.schemas.enable": "true",
+        "key.converter": "org.apache.kafka.connect.json.JsonConverter",
+        "key.converter.schema.registry.url": "http://schema-registry:8081",
+        "value.converter": "io.confluent.connect.avro.AvroConverter",
+        "value.converter.schema.registry.url": "http://schema-registry:8081",
+        "time.precision.mode": "connect"
+    }
+}

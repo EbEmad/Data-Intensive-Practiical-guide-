@@ -1,0 +1,25 @@
+{
+    "name": "mysql-connector",
+    "config": {
+        "connector.class": "io.debezium.connector.mysql.MySqlConnector",
+        "database.hostname": "mysql",
+        "database.port": "3306",
+        "database.user": "root",
+        "database.password": "root",
+        "database.server.id": "184054",
+        "database.include.list": "ecom",
+        "topic.prefix": "cdc",
+        "key.converter": "org.apache.kafka.connect.json.JsonConverter",
+        "key.converter.schema.registry.url": "http://schema-registry:8081",
+        "value.converter": "io.confluent.connect.avro.AvroConverter",
+        "value.converter.schema.registry.url": "http://schema-registry:8081",
+        "schema.history.internal.kafka.bootstrap.servers": "broker:29092",
+        "schema.history.internal.kafka.topic": "ecom-schemahistory",
+        "include.schema.changes": "true",
+        "event.processing.failure.handling.mode": "ignore",
+        "transforms": "unwrap",
+        "transforms.unwrap.type": "io.debezium.transforms.ExtractNewRecordState",
+        "transforms.unwrap.drop.tombstones": false,
+        "time.precision.mode": "connect"
+    }
+}
