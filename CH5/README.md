@@ -1,6 +1,6 @@
 This repository contains practical implementations and guides for building data-intensive applications.
 
-## Chapter 5: Real-Time Change Data Capture (CDC) Pipeline
+## Chapter 5: DATA REPLICATION
 
 This project demonstrates a robust, scalable Change Data Capture (CDC) architecture that replicates data from a MySQL database to multiple PostgreSQL replicas in real-time using Apache Kafka and Kafka Connect.
 
