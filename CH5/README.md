@@ -1,4 +1,3 @@
-This repository contains practical implementations and guides for building data-intensive applications.
 
 ## Chapter 5: DATA REPLICATION
 
