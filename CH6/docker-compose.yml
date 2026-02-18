@@ -1,0 +1,80 @@
+version: '3'
+services:
+  configserver1:
+    image: mongo:latest
+    container_name: configserver1
+    command: mongod --configsvr --replSet configReplSet --bind_ip_all --port 27015 # --bind_ip localhost,192.51.100.1
+    ports:
+      - "27015:27015"
+
+
+  configserver2:
+    image: mongo:latest
+    container_name: configserver2
+    command: mongod --configsvr --replSet configReplSet --bind_ip_all --port 27016 # --bind_ip localhost,192.51.100.1
+    ports:
+      - "27016:27016"
+
+  
+  configserver3:
+    image: mongo:latest
+    container_name: configserver3
+    command: mongod --configsvr --replSet configReplSet --bind_ip_all --port 27017 # --bind_ip localhost,192.51.100.1
+    ports:
+      - "27017:27017"
+
+
+  shardsvr1:
+    image: mongo:latest
+    container_name: shardsvr1
+    command: mongod --shardsvr --replSet rs0 --bind_ip_all --port 27018
+    ports:
+      - "27018:27018"
+
+
+  shardsvr2:
+    image: mongo:latest
+    container_name: shardsvr2
+    command: mongod --shardsvr --replSet rs0 --bind_ip_all --port 27019
+    ports:
+      - "27019:27019"
+
+
+  shardsvr3:
+    image: mongo:latest
+    container_name: shardsvr3
+    command: mongod --shardsvr --replSet rs0 --bind_ip_all --port 27020
+    ports:
+      - "27020:27020"
+
+  shardsvr4:
+    image: mongo:latest
+    container_name: shardsvr4
+    command: mongod --shardsvr --replSet rs1 --bind_ip_all --port 27022
+    ports:
+      - "27022:27022"
+
+
+  shardsvr5:
+    image: mongo:latest
+    container_name: shardsvr5
+    command: mongod --shardsvr --replSet rs1 --bind_ip_all --port 27023
+    ports:
+      - "27023:27023"
+
+
+  shardsvr6:
+    image: mongo:latest
+    container_name: shardsvr6
+    command: mongod --shardsvr --replSet rs1 --bind_ip_all --port 27024
+    ports:
+      - "27024:27024"
+
+
+  mongos:
+    image: mongo:latest
+    container_name: mongos
+    command: mongos --configdb configReplSet/configserver1:27015,configserver2:27016,configserver3:27017 --bind_ip_all --port 27021
+    ports:
+      - "27021:27021"
+
